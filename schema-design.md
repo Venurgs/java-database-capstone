@@ -1,89 +1,75 @@
-# Diseño de Esquema de Base de Datos - Smart Clinic
+# Schema Design for Smart Clinic
 
-Este documento define la arquitectura de datos híbrida para el sistema. Utilizamos **MySQL** para datos relacionales estructurados (integridad referencial estricta) y **MongoDB** para documentos flexibles (estructuras anidadas).
+## MySQL Database Design
+This section defines the structured data for the core operational needs of the clinic. We enforce strict relationships (Foreign Keys) to ensure data integrity.
 
----
+### Table: patients
+Stores personal information for individuals receiving care.
+- `id`: INT, Primary Key, Auto Increment
+- `first_name`: VARCHAR(50), Not Null
+- `last_name`: VARCHAR(50), Not Null
+- `email`: VARCHAR(100), Unique, Not Null (Valid email format required in app logic)
+- `phone`: VARCHAR(20), Not Null
+- `date_of_birth`: DATE, Not Null
 
-## 1. Diseño de Esquema MySQL (Datos Relacionales)
-Estas tablas gestionarán las entidades principales que requieren relaciones estrictas y transaccionalidad.
+### Table: doctors
+Stores medical professional details and credentials.
+- `id`: INT, Primary Key, Auto Increment
+- `first_name`: VARCHAR(50), Not Null
+- `last_name`: VARCHAR(50), Not Null
+- `specialty`: VARCHAR(50), Not Null (e.g., Cardiology, General)
+- `email`: VARCHAR(100), Unique, Not Null
 
-### Tabla: `patients` (Pacientes)
-Almacena la información personal de los usuarios que reciben atención.
-| Columna | Tipo de Dato | Restricciones | Descripción |
-| :--- | :--- | :--- | :--- |
-| `id` | INT | **PK**, AUTO_INCREMENT | Identificador único del paciente. |
-| `first_name` | VARCHAR(50) | NOT NULL | Nombre del paciente. |
-| `last_name` | VARCHAR(50) | NOT NULL | Apellido del paciente. |
-| `email` | VARCHAR(100) | **UNIQUE**, NOT NULL | Correo para contacto y login. |
-| `phone` | VARCHAR(20) | NULL | Número de contacto telefónico. |
-| `date_of_birth`| DATE | NOT NULL | Necesario para historial médico. |
+### Table: appointments
+The pivotal table linking patients to doctors.
+- `id`: INT, Primary Key, Auto Increment
+- `doctor_id`: INT, Foreign Key → doctors(id)
+- `patient_id`: INT, Foreign Key → patients(id)
+- `appointment_time`: DATETIME, Not Null
+- `status`: INT (0 = Scheduled, 1 = Completed, 2 = Cancelled)
 
-### Tabla: `doctors` (Doctores)
-Almacena a los profesionales médicos y sus especialidades.
-| Columna | Tipo de Dato | Restricciones | Descripción |
-| :--- | :--- | :--- | :--- |
-| `id` | INT | **PK**, AUTO_INCREMENT | Identificador único del doctor. |
-| `first_name` | VARCHAR(50) | NOT NULL | Nombre del doctor. |
-| `last_name` | VARCHAR(50) | NOT NULL | Apellido del doctor. |
-| `specialty` | VARCHAR(50) | NOT NULL | Especialidad (ej: Cardiología). |
-| `email` | VARCHAR(100) | **UNIQUE**, NOT NULL | Correo corporativo del doctor. |
-
-### Tabla: `appointments` (Citas)
-Tabla pivote que conecta pacientes y doctores en un momento específico.
-| Columna | Tipo de Dato | Restricciones | Descripción |
-| :--- | :--- | :--- | :--- |
-| `id` | INT | **PK**, AUTO_INCREMENT | Identificador único de la cita. |
-| `patient_id` | INT | **FK** (Ref: patients.id) | Paciente que solicita la cita. |
-| `doctor_id` | INT | **FK** (Ref: doctors.id) | Doctor asignado. |
-| `appointment_time`| DATETIME | NOT NULL | Fecha y hora exacta de la cita. |
-| `status` | VARCHAR(20) | DEFAULT 'Scheduled' | Estado (Scheduled, Completed, Cancelled). |
-
-### Tabla: `administrators` (Administradores)
-Usuarios con permisos elevados para gestionar el sistema.
-| Columna | Tipo de Dato | Restricciones | Descripción |
-| :--- | :--- | :--- | :--- |
-| `id` | INT | **PK**, AUTO_INCREMENT | Identificador único del admin. |
-| `username` | VARCHAR(50) | **UNIQUE**, NOT NULL | Nombre de usuario para login. |
-| `password_hash`| VARCHAR(255)| NOT NULL | Contraseña encriptada (seguridad). |
-| `role` | VARCHAR(20) | DEFAULT 'ADMIN' | Rol para gestión de permisos Spring. |
+### Table: admin
+Manages system access and configuration.
+- `id`: INT, Primary Key, Auto Increment
+- `username`: VARCHAR(50), Unique, Not Null
+- `password`: VARCHAR(255), Not Null (Store as Hash)
+- `role`: VARCHAR(20), Default 'ADMIN'
 
 ---
 
-## 2. Diseño de Colección MongoDB (Datos No Estructurados)
-Utilizamos MongoDB para datos que varían en tamaño o estructura, como las recetas médicas que contienen listas de medicamentos.
+## MongoDB Collection Design
+We use MongoDB for data that requires flexibility, such as medical prescriptions which may contain varying lists of medications and metadata.
 
-### Colección: `prescriptions` (Recetas)
-Esta colección almacena los detalles del diagnóstico y los medicamentos recetados tras una cita.
+### Collection: prescriptions
+Links to a specific appointment but stores complex nested data about medications.
 
-**Justificación del diseño:**
-* Usamos MongoDB porque una receta contiene una **lista (array)** de medicamentos.
-* En SQL, esto requeriría una tabla extra (`prescription_items`) y JOINS complejos.
-* En MongoDB, podemos guardar la lista completa dentro del mismo documento, lo que hace la lectura mucho más rápida para la aplicación.
-
-#### Ejemplo de Documento JSON (Estructura de Datos)
+**Example Document (JSON):**
 
 ```json
 {
-  "_id": "64c9e3b2a1b2c3d4e5f6g7h8",
+  "_id": "ObjectId('64abc123456')",
   "appointmentId": 101,
   "patientId": 5,
   "doctorId": 3,
-  "diagnosis": "Infección respiratoria aguda",
-  "notes": "El paciente presenta fiebre leve y tos seca. Se recomienda reposo.",
-  "status": "Active",
-  "medicationList": [
+  "medications": [
     {
-      "name": "Amoxicilina",
+      "name": "Amoxicillin",
       "dosage": "500mg",
-      "frequency": "Cada 8 horas",
-      "duration": "7 días"
+      "frequency": "Every 8 hours",
+      "duration": "7 days"
     },
     {
-      "name": "Ibuprofeno",
+      "name": "Ibuprofen",
       "dosage": "400mg",
-      "frequency": "Cada 6 horas si hay fiebre",
-      "duration": "3 días"
+      "frequency": "Every 6 hours",
+      "duration": "3 days"
     }
   ],
-  "issuedAt": "2025-10-27T14:30:00Z"
+  "tags": ["antibiotic", "pain relief"],
+  "metadata": {
+    "createdAt": "2025-10-27T14:30:00Z",
+    "updatedAt": "2025-10-27T14:35:00Z",
+    "status": "active"
+  },
+  "doctorNotes": "Patient should take medication with food."
 }
