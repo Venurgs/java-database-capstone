@@ -122,9 +122,9 @@ export function createDoctorCard(doctor) {
         actionsDiv.appendChild(bookNow);
     }
 
-    // 4. Ensamblaje final
+
     card.appendChild(infoDiv);
-    // Solo añadimos actionsDiv si tiene botones
+
     if (actionsDiv.hasChildNodes()) {
         card.appendChild(actionsDiv);
     }
