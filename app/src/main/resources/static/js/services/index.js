@@ -1,4 +1,98 @@
-/*
+/**
+ * index.js
+ * Maneja la lógica de la página de inicio (Landing Page) y autenticación.
+ */
+
+import { openModal } from "../components/modals.js"; // Asegúrate de tener modals.js (lo haremos si falta)
+import { API_BASE_URL } from "../config/config.js";
+import { selectRole } from "../render.js"; // Helper para guardar rol en localStorage
+
+const ADMIN_API = API_BASE_URL + '/admin';
+const DOCTOR_API = API_BASE_URL + '/doctor/login';
+const PATIENT_API = API_BASE_URL + '/patient/login'; // Endpoint para pacientes
+
+window.onload = function () {
+    const adminBtn = document.getElementById('btn-admin'); // Ojo con el ID en tu HTML
+    if (adminBtn) {
+        adminBtn.addEventListener('click', () => {
+            // Abre el modal y carga el formulario de admin
+            if (typeof openModal === 'function') openModal('adminLogin');
+        });
+    }
+
+    const doctorBtn = document.getElementById('btn-doctor');
+    if (doctorBtn) {
+        doctorBtn.addEventListener('click', () => {
+            if (typeof openModal === 'function') openModal('doctorLogin');
+        });
+    }
+
+    const patientBtn = document.getElementById('btn-patient');
+    if (patientBtn) {
+        patientBtn.addEventListener('click', () => {
+
+            selectRole('patient');
+            window.location.href = '/pages/patientDashboard.html';
+        });
+    }
+};
+
+export async function adminLoginHandler(username, password) {
+    try {
+        const response = await fetch(ADMIN_API, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username, password })
+        });
+
+        if (response.ok) {
+            const data = await response.json();
+            // Guardar token (asumiendo que el backend devuelve { token: "..." })
+            // O si devuelve el objeto usuario completo, ajusta según tu backend
+            const token = data.token || "dummy-admin-token"; // Fallback si no hay token real
+
+            localStorage.setItem("token", token);
+            selectRole("admin");
+            window.location.href = "/templates/admin/adminDashboard.html"; // Ojo: Thymeleaf sirve esto, ruta relativa puede variar
+        } else {
+            alert("¡Credenciales de Administrador inválidas!");
+        }
+    } catch (error) {
+        console.error("Admin login error:", error);
+        alert("Error de conexión al servidor.");
+    }
+}
+
+// --- Manejador de Login de DOCTOR ---
+export async function doctorLoginHandler(email, password) {
+    try {
+        const response = await fetch(DOCTOR_API, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email, password })
+        });
+
+        if (response.ok) {
+            const data = await response.json();
+            const token = data.token || "dummy-doctor-token";
+
+            localStorage.setItem("token", token);
+            // Guardar ID del doctor también es útil
+            if(data.id) localStorage.setItem("doctorId", data.id);
+
+            selectRole("doctor");
+            window.location.href = "/templates/doctor/doctorDashboard.html";
+        } else {
+            alert("¡Credenciales de Doctor inválidas!");
+        }
+    } catch (error) {
+        console.error("Doctor login error:", error);
+        alert("Error de conexión al servidor.");
+    }
+}
+
+window.adminLoginHandler = adminLoginHandler;
+window.doctorLoginHandler = doctorLoginHandler;/*
   Import the openModal function to handle showing login popups/modals
   Import the base API URL from the config file
   Define constants for the admin and doctor login API endpoints using the base URL

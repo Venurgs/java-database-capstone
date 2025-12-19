@@ -1,54 +1,80 @@
-/*
-  Import getAllAppointments to fetch appointments from the backend
-  Import createPatientRow to generate a table row for each patient appointment
+/**
+ * doctorDashboard.js
+ * Lógica para el panel del doctor: gestión de citas.
+ */
 
+// Asegúrate de que este servicio exista o ajusta la ruta a patientServices.js si ahí pusiste la lógica
+import { getAllAppointments } from './services/appointmentRecordService.js';
+import { createPatientRow } from './components/patientRows.js';
 
-  Get the table body where patient rows will be added
-  Initialize selectedDate with today's date in 'YYYY-MM-DD' format
-  Get the saved token from localStorage (used for authenticated API calls)
-  Initialize patientName to null (used for filtering by name)
+// Variables Globales
+const patientTableBody = document.getElementById("patientTableBody");
+let selectedDate = new Date().toISOString().split('T')[0]; // Hoy en formato YYYY-MM-DD
+let patientName = null;
+const token = localStorage.getItem("token");
 
+document.addEventListener('DOMContentLoaded', () => {
+    // Renderizado inicial
+    loadAppointments();
 
-  Add an 'input' event listener to the search bar
-  On each keystroke:
-    - Trim and check the input value
-    - If not empty, use it as the patientName for filtering
-    - Else, reset patientName to "null" (as expected by backend)
-    - Reload the appointments list with the updated filter
+    // 1. Configurar Barra de Búsqueda
+    const searchBar = document.getElementById("searchBar");
+    if (searchBar) {
+        searchBar.addEventListener("input", (e) => {
+            const value = e.target.value.trim();
+            patientName = value === "" ? null : value;
+            loadAppointments();
+        });
+    }
 
+    // 2. Configurar Filtros de Fecha
+    const btnToday = document.getElementById("btnToday");
+    const dateFilter = document.getElementById("dateFilter");
 
-  Add a click listener to the "Today" button
-  When clicked:
-    - Set selectedDate to today's date
-    - Update the date picker UI to match
-    - Reload the appointments for today
+    if (btnToday) {
+        btnToday.addEventListener("click", () => {
+            selectedDate = new Date().toISOString().split('T')[0];
+            if (dateFilter) dateFilter.value = selectedDate;
+            loadAppointments();
+        });
+    }
 
+    if (dateFilter) {
+        // Inicializar input date con hoy
+        dateFilter.value = selectedDate;
+        dateFilter.addEventListener("change", (e) => {
+            selectedDate = e.target.value;
+            loadAppointments();
+        });
+    }
+});
 
-  Add a change event listener to the date picker
-  When the date changes:
-    - Update selectedDate with the new value
-    - Reload the appointments for that specific date
+// 3. Función loadAppointments
+async function loadAppointments() {
+    if (!patientTableBody) return;
 
+    patientTableBody.innerHTML = "<tr><td colspan='5'>Cargando citas...</td></tr>";
 
-  Function: loadAppointments
-  Purpose: Fetch and display appointments based on selected date and optional patient name
+    try {
+        // Llama al servicio (asegúrate de que acepte estos parámetros)
+        const appointments = await getAllAppointments(selectedDate, patientName, token);
 
-  Step 1: Call getAllAppointments with selectedDate, patientName, and token
-  Step 2: Clear the table body content before rendering new rows
+        patientTableBody.innerHTML = ""; // Limpiar
 
-  Step 3: If no appointments are returned:
-    - Display a message row: "No Appointments found for today."
+        if (!appointments || appointments.length === 0) {
+            patientTableBody.innerHTML = "<tr><td colspan='5' class='noPatientRecord'>No se encontraron citas para esta fecha/búsqueda.</td></tr>";
+            return;
+        }
 
-  Step 4: If appointments exist:
-    - Loop through each appointment and construct a 'patient' object with id, name, phone, and email
-    - Call createPatientRow to generate a table row for the appointment
-    - Append each row to the table body
+        // Crear filas
+        appointments.forEach(appointment => {
+            // Se asume que appointment trae datos del paciente anidados o planos
+            const row = createPatientRow(appointment);
+            patientTableBody.appendChild(row);
+        });
 
-  Step 5: Catch and handle any errors during fetch:
-    - Show a message row: "Error loading appointments. Try again later."
-
-
-  When the page is fully loaded (DOMContentLoaded):
-    - Call renderContent() (assumes it sets up the UI layout)
-    - Call loadAppointments() to display today's appointments by default
-*/
+    } catch (error) {
+        console.error("Error loading appointments:", error);
+        patientTableBody.innerHTML = "<tr><td colspan='5' style='color:red;'>Error al cargar las citas. Intente nuevamente.</td></tr>";
+    }
+}
